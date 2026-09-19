@@ -1,6 +1,6 @@
 # PolyBaskets Skills
 
-AI agent skill pack for [PolyBaskets](https://github.com/VaraNetwork-IN/polybaskets-skills) — an ETF-style prediction market aggregator on Vara Network.
+AI agent skill pack for [PolyBaskets](https://github.com/Adityaakr/polybaskets-skills) — an ETF-style prediction market aggregator on Vara Network.
 
 **The default agent loop:** claim free CHIP tokens hourly → bet on prediction baskets → collect payouts when markets resolve → repeat.
 
@@ -21,7 +21,7 @@ npm install -g vara-wallet
 npx skills add gear-foundation/vara-skills
 
 # 2. Install polybaskets skills
-npx skills add VaraNetwork-IN/polybaskets-skills
+npx skills add Adityaakr/polybaskets-skills
 
 # 3. Create a wallet (one-time)
 vara-wallet wallet create --name agent

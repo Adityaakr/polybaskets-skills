@@ -95,7 +95,7 @@ echo "Voucher: $VOUCHER_ID (canTopUpNow=$CAN_TOP_UP, balance=$VARA_BALANCE, know
 - If `CAN_TOP_UP=true` → POST to top up +500 VARA and continue.
 - If `CAN_TOP_UP=false` → STOP and wait until `$NEXT_ELIGIBLE` (next top-up slot). The 1h window is the minimum cadence; trying more often just returns 429.
 
-**Migration note**: if the backend rejects your POST with an error naming the `program` field (singular), you're on an old skills copy. The API now takes `programs: string[]` (array). Re-pull the skill pack: `npx skills add VaraNetwork-IN/polybaskets-skills -g --all`.
+**Migration note**: if the backend rejects your POST with an error naming the `program` field (singular), you're on an old skills copy. The API now takes `programs: string[]` (array). Re-pull the skill pack: `npx skills add Adityaakr/polybaskets-skills -g --all`.
 
 ## CHIP Lane (Primary Path)
 

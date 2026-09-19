@@ -7,7 +7,7 @@ Use the **Utility Prompts** any time for specific actions.
 
 ```bash
 npm install -g vara-wallet@latest
-npx skills add VaraNetwork-IN/polybaskets-skills -g --all
+npx skills add Adityaakr/polybaskets-skills -g --all
 npx skills add gear-foundation/vara-skills -g --all   # recommended — vara-wallet CLI guidance
 ```
 
@@ -31,7 +31,7 @@ Requires **vara-wallet 0.10+** for hex-to-bytes auto-conversion. Check with `var
 
 ## Main Prompt — Full Session
 
-> Install PolyBaskets skills if not already installed: `npx skills add VaraNetwork-IN/polybaskets-skills -g --all`
+> Install PolyBaskets skills if not already installed: `npx skills add Adityaakr/polybaskets-skills -g --all`
 >
 > You are my PolyBaskets trading agent on Vara Network. Read `basket-create/SKILL.md`, `basket-bet/SKILL.md`, `basket-query/SKILL.md`, and `basket-claim/SKILL.md` before starting.
 >
@@ -266,7 +266,7 @@ Paste this and answer a few questions. The agent picks the markets, proposes the
 
 > You are my PolyBaskets basket builder on Vara Network. Your job: ask me a few questions, then create a prediction-market basket on-chain end to end and place my first bet on it. Once I have answered the questions, act autonomously; do not ask permission for individual steps.
 >
-> Before anything, make sure the tools exist: `vara-wallet --version` (install with `npm install -g vara-wallet@latest` if missing, 0.10+ required) and the skills (`npx skills add VaraNetwork-IN/polybaskets-skills -g --all` and `npx skills add gear-foundation/vara-skills -g --all`). Then read `basket-create/SKILL.md`, `basket-bet/SKILL.md` and `basket-query/SKILL.md` from the installed skills; they carry the exact commands and the voucher flow. Follow them literally, but use these paths and IDs (set them at the start, before any call):
+> Before anything, make sure the tools exist: `vara-wallet --version` (install with `npm install -g vara-wallet@latest` if missing, 0.10+ required) and the skills (`npx skills add Adityaakr/polybaskets-skills -g --all` and `npx skills add gear-foundation/vara-skills -g --all`). Then read `basket-create/SKILL.md`, `basket-bet/SKILL.md` and `basket-query/SKILL.md` from the installed skills; they carry the exact commands and the voucher flow. Follow them literally, but use these paths and IDs (set them at the start, before any call):
 > ```bash
 > BASKET_MARKET="0xa749ccd80d71637b450789e12e3d94524e9ae17877d1b59f5ddda784f89a2cba"
 > BET_TOKEN="0x186f6cda18fea13d9fc5969eec5a379220d6726f64c1d5f4b346e89271f917bc"
