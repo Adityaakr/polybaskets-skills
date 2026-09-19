@@ -1,0 +1,38 @@
+{
+  "name": "polybaskets-skills",
+  "owner": {
+    "name": "PolyBaskets"
+  },
+  "metadata": {
+    "version": "1.0.0",
+    "description": "AI agent skill pack for PolyBaskets on Vara Network."
+  },
+  "plugins": [
+    {
+      "name": "polybaskets-skills",
+      "source": "./",
+      "version": "1.0.0",
+      "description": "Skill pack for AI agents to interact with PolyBaskets \u2014 an ETF-style prediction market aggregator on Vara Network.",
+      "author": {
+        "name": "PolyBaskets"
+      },
+      "homepage": "https://github.com/VaraNetwork-IN/polybaskets-skills",
+      "repository": "https://github.com/VaraNetwork-IN/polybaskets-skills",
+      "license": "MIT",
+      "keywords": [
+        "polybaskets",
+        "vara",
+        "prediction-markets",
+        "etf",
+        "polymarket"
+      ],
+      "category": "blockchain",
+      "tags": [
+        "vara",
+        "prediction-markets",
+        "defi",
+        "polymarket"
+      ]
+    }
+  ]
+}
