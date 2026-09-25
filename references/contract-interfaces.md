@@ -12,6 +12,9 @@ BasketItem {
   poly_slug: str           # Polymarket market slug
   weight_bps: u16          # Weight in basis points (0-10000)
   selected_outcome: Outcome # YES or NO
+  end_timestamp: u64       # REQUIRED. Polymarket endDate in Unix ms.
+                           # Omitting it (or sending 0) creates a basket that can
+                           # never be bet on: every quote fails the cutoff check.
 }
 
 Outcome = YES | NO
@@ -72,8 +75,8 @@ BasketMarketConfig {
 | Method | Args | Returns | Notes |
 |--------|------|---------|-------|
 | `CreateBasket` | `name, description, items, asset_kind` | `u64` (basket_id) | Weights must sum to 10000 |
-| `BetOnBasket` | `basket_id, index_at_creation_bps` | `u128` (shares) | Requires `--value` in VARA |
-| `BetOnBasketFromFreebetLedger` | `user, basket_id, index_at_creation_bps` | `u128` (shares) | Ledger-only downstream method; normal agents call `FreebetLedger/SpendFreebet` instead |
+| `BetOnBasket` | `basket_id, signed_quote` | `u128` (shares) | Requires `--value` in VARA and a fresh BasketMarket quote |
+| `BetOnBasketFromFreebetLedger` | `user, basket_id, signed_quote` | `u128` (shares) | Ledger-only downstream method; normal agents call `FreebetLedger/SpendFreebet` instead |
 | `Claim` | `basket_id` | `u128` (payout) | Only after settlement finalized |
 | `ProposeSettlement` | `basket_id, item_resolutions, payload` | `null` | Settler role only |
 | `FinalizeSettlement` | `basket_id` | `null` | Permissionless after challenge window |
@@ -107,7 +110,10 @@ BasketMarketConfig {
 
 ---
 
-## BetToken (`bet_token_client.idl`)
+## BetToken (legacy reference only)
+
+CHIP is retired for betting. Kept for reading historical data; do not claim or
+spend CHIP for current bets. (`bet_token_client.idl`)
 
 Fungible token (VFT) with hourly claim windows and daily streak bonuses.
 
@@ -146,9 +152,11 @@ Fungible token (VFT) with hourly claim windows and daily streak bonuses.
 
 ---
 
-## BetLane (`bet_lane_client.idl`)
+## BetLane (`bet_lane_client.idl`) — legacy reference only
 
-Primary betting lane using CHIP/BetToken instead of native VARA.
+Historical betting lane using CHIP/BetToken. It is disabled for the current
+campaign and must not be selected by agents; current bets use BasketMarket VARA
+or FreebetLedger.
 
 ### Key Methods
 
@@ -193,7 +201,7 @@ FreebetGrant {
 
 | Method | Args | Returns | Notes |
 |--------|------|---------|-------|
-| `SpendFreebet` | `bet_program_id, basket_id, amount, index_at_creation_bps` | `u128` | Agent path. Debits caller balance and forwards `amount` as native value into BasketMarket |
+| `SpendFreebet` | `bet_program_id, basket_id, amount, signed_quote` | `u128` | Agent path. Debits caller balance and forwards `amount` plus signed quote into BasketMarket |
 | `Grant` | `to, grant_id, reason` | `u128` | Admin only. Must attach native VARA value; idempotent by `grant_id` |
 | `ReturnFreebet` | `user, basket_id` | `u128` | Authorized bet program only. BasketMarket calls this during claim to return principal |
 | `AuthorizeBetProgram` | `program_id` | `null` | Admin only |
@@ -213,5 +221,5 @@ FreebetGrant {
 
 - Only spend freebet on baskets where `asset_kind == "Vara"` and `BasketMarket/IsVaraEnabled == true`.
 - Do not call `BasketMarket/BetOnBasketFromFreebetLedger` directly; the contract accepts only the configured ledger as caller.
-- Do not use the BetLane quote service. Compute `index_at_creation_bps` from live Polymarket prices immediately before `SpendFreebet`.
+- Request a fresh quote from `/api/basket-market/quote`, targeting BasketMarket, immediately before `SpendFreebet`. The BetLane quote endpoint is for CHIP only.
 - On `BasketMarket/Claim`, freebet principal returns to FreebetLedger and only profit above stake is sent to the wallet.

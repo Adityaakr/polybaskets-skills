@@ -10,8 +10,6 @@ Copy-paste this block at the start of any PolyBaskets interaction session:
 # 0xea8373e8b4441ef6e95325c1044d23ebf615b43fdef60a48623836a15ca7a25a is DEAD —
 # baskets created there are rejected by the bet-quote-service ("not active").
 BASKET_MARKET="0xa749ccd80d71637b450789e12e3d94524e9ae17877d1b59f5ddda784f89a2cba"
-BET_TOKEN="0x186f6cda18fea13d9fc5969eec5a379220d6726f64c1d5f4b346e89271f917bc"
-BET_LANE="0x35848dea0ab64f283497deaff93b12fe4d17649624b2cd5149f253ef372b29dc"
 FREEBET_LEDGER="0x2bb74834402fb7da9144d2ab91c1570e97237ad0ead1f7feb392162c3e3ad64e"
 DAILY_CONTEST="0x1f320a71665f990701daf3862aa4cbb98943859a726c2b497bd053e120149a77"
 
@@ -22,8 +20,6 @@ BET_QUOTE_URL="https://bet-quote-service-production.up.railway.app"
 # IDL paths (relative to skill pack root)
 _PB="${POLYBASKETS_SKILLS_DIR:-skills}"
 IDL="$_PB/idl/polymarket-mirror.idl"
-BET_TOKEN_IDL="$_PB/idl/bet_token_client.idl"
-BET_LANE_IDL="$_PB/idl/bet_lane_client.idl"
 FREEBET_LEDGER_IDL="$_PB/idl/freebet-ledger.idl"
 ```
 
@@ -38,8 +34,8 @@ If running from the polybaskets repo root, IDL files are also at:
 | Program | Purpose |
 |---------|---------|
 | BasketMarket | Core contract: baskets, settlement state, agent names, and native VARA lane |
-| BetToken | CHIP fungible token with **hourly** claim (500 base, +10 per UTC-day streak, cap 600 on day 11) |
-| BetLane | Primary betting lane using CHIP tokens |
+| BetToken | Legacy CHIP token; historical data only, disabled for current agent betting |
+| BetLane | Legacy CHIP lane; its dependency targets an old BasketMarket and must not be used as fallback |
 | FreebetLedger | Native VARA freebet balance ledger; spends into `Vara` baskets and receives returned principal |
 
 ## Network
@@ -75,7 +71,7 @@ curl -s "$VOUCHER_URL/$MY_ADDR"
 # POST to fund / top up / register programs (batched — single call registers all listed programs)
 # ⚠ `programs` is an ARRAY of contract program IDs, NOT your wallet address
 curl -s -X POST "$VOUCHER_URL" -H 'Content-Type: application/json' \
-  -d '{"account":"'"$MY_ADDR"'","programs":["'"$BASKET_MARKET"'","'"$BET_TOKEN"'","'"$BET_LANE"'"]}'
+  -d '{"account":"'"$MY_ADDR"'","programs":["'"$BASKET_MARKET"'","'"$FREEBET_LEDGER"'"]}'
 # On HTTP 200 → { "voucherId": "0x..." }
 #   Three cases end up here:
 #     (a) New voucher issued with 500 VARA + requested programs (first request ever),
@@ -95,7 +91,7 @@ curl -s -X POST "$VOUCHER_URL" -H 'Content-Type: application/json' \
 
 **Rules:**
 - **Voucher top-up rule:** GET first. POST only when there is no voucher, one of the required programs is missing, or `balanceKnown=true` AND `varaBalance < 10000000000000` (10 VARA) AND `canTopUpNow=true`. Reuse the existing voucher while the known balance is at least 10 VARA, even if `canTopUpNow=true`.
-- **Program set:** CHIP sessions need `[$BASKET_MARKET, $BET_TOKEN, $BET_LANE]`. Native freebet sessions also need `$FREEBET_LEDGER` because the user sends `FreebetLedger/SpendFreebet`.
+- **Program set:** current wallet-VARA sessions need `[$BASKET_MARKET]`; native freebet sessions also need `$FREEBET_LEDGER` because the user sends `FreebetLedger/SpendFreebet`. Do not add BetToken/BetLane as a betting fallback.
 - **Drained-voucher STOP:** when `balanceKnown=true` AND `varaBalance < 10000000000000` (10 VARA) AND `canTopUpNow=false`, you're inside the 1h window with no budget — STOP and wait until `nextTopUpEligibleAt`.
 - **RPC outage fallback:** if `balanceKnown=false`, do NOT treat a zero balance as "drained" — the backend just couldn't reach the chain. Reuse the current voucher if one exists, and do not top up solely from `canTopUpNow`.
 - **Controller throttle:** 6 POSTs per IP per hour (NestJS @Throttle). Headroom for retries on transient failures — the business rate limit is the per-wallet DB check.

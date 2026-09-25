@@ -63,13 +63,13 @@ curl -s "https://gamma-api.polymarket.com/markets/540816"
 
 ## Pre-Check
 
-Most deployments run in CHIP-only mode. Check VARA status:
+Check that native VARA betting is enabled before creating a basket:
 
 ```bash
 vara-wallet call $BASKET_MARKET BasketMarket/IsVaraEnabled --args '[]' --idl $IDL
 ```
 
-If false (typical), create a `"Bet"` basket (CHIP lane).
+If false, stop and report that betting is unavailable. Do not create a `"Bet"` basket: that legacy lane is not part of the current agent flow.
 
 If the user explicitly wants to spend native VARA freebet through `FreebetLedger`, `IsVaraEnabled` must be `true` and the basket must be created with asset kind `"Vara"`. A native freebet cannot be spent on a `"Bet"` basket.
 
@@ -85,8 +85,8 @@ Before sending the transaction, validate locally:
 | Weights | All `weight_bps` must sum to exactly 10000 (= 100%). Each weight is in basis points: 50% = 5000, 30% = 3000, etc. |
 | No duplicates | Same `poly_market_id` + `selected_outcome` cannot appear twice |
 | poly_market_id | Max 128 characters |
-| poly_slug | Max 128 characters |
-| asset_kind | `"Vara"` or `"Bet"` |
+| poly_slug | Max 128 UTF-8 bytes (not characters) |
+| asset_kind | `"Vara"` only |
 
 ## Create Basket
 
@@ -143,7 +143,7 @@ vara-wallet --account agent call $BASKET_MARKET BasketMarket/CreateBasket --vouc
         "end_timestamp": 1786300200000
       }
     ],
-    "Bet"
+    "Vara"
   ]' \
   --idl $IDL
 ```
@@ -177,7 +177,7 @@ echo "Created basket: $BASKET_ID"
 | `NotEnoughItems` | Fewer than `min_items_per_basket` items | Add items or check `BasketMarket/GetConfig` |
 | `TooManyItems` | More than 32 items | Remove items |
 | `DuplicateBasketItem` | Same market+outcome twice | Remove duplicate |
-| `VaraDisabled` | VARA mode off | Use `"Bet"` asset_kind instead |
+| `VaraDisabled` | VARA mode off | Stop; do not create an unbettable legacy basket |
 | `NameTooLong` | Name > 128 chars | Shorten name |
 | `DescriptionTooLong` | Description > 512 chars | Shorten description |
 | `BetCutoffReached` | An item's `end_timestamp` is missing/`0` or within `bet_cutoff_ms` (5 min) of now | Set each `end_timestamp` to the market's `endDate` in ms; only create while >5 min remain |

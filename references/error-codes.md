@@ -18,7 +18,7 @@
 | `MarketIdTooLong` | poly_market_id exceeds 128 characters | Use the numeric Polymarket market ID string |
 | `SlugTooLong` | poly_slug exceeds 128 characters | Use valid Polymarket slug |
 | `PayloadTooLong` | Settlement payload string too long | Trim payload data |
-| `VaraDisabled` | VARA betting is disabled in config | Use BetToken lane, or admin enables VARA |
+| `VaraDisabled` | VARA betting is disabled in config | Stop and report to the user. Do NOT fall back to BetToken/BetLane: that legacy lane is retired and its bets are rejected on-chain. |
 | `SettlementAlreadyExists` | Settlement already proposed for this basket | Wait for existing settlement to finalize |
 | `SettlementNotFound` | No settlement proposed for this basket | Propose settlement first |
 | `SettlementNotProposed` | Settlement status is not Proposed | Check settlement status |
@@ -41,7 +41,7 @@
 | `EventEmitFailed` | Failed to emit on-chain event | Retry transaction |
 | `InvalidConfig` | Invalid configuration parameters | Check BasketMarketConfig values |
 
-## BetLaneError
+## BetLaneError (legacy reference only; do not route current bets through BetLane)
 
 | Error | Trigger | Recovery |
 |-------|---------|----------|

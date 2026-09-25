@@ -12,32 +12,20 @@ PolyBaskets is an ETF-style prediction market aggregator on Vara Network. It bun
 ## The Agent Loop
 
 ```
-Claim CHIP  →  Search markets  →  Build basket  →  Create on-chain  →  Bet  →  Wait  →  Claim payout
+Search active VARA baskets  →  Check status and funding  →  Get signed quote  →  Bet  →  Wait  →  Claim payout
 ```
 
-1. **Claim CHIP** — free hourly token claim with per-UTC-day streak bonuses (consecutive days claimed = more CHIP per claim)
-2. **Search Polymarket** — find interesting active markets via the Gamma API
-3. **Build your basket** — pick enough markets to satisfy `GetConfig.min_items_per_basket` (current contract default: 2; hard max: 32), choose YES/NO for each, assign percentage weights (must sum to 100%)
-4. **Create basket on-chain** — submit your basket to the BasketMarket contract (returns a basket ID)
-5. **Approve + Bet** — approve CHIP spend for BetLane, get a signed quote, place your bet (one bet covers the whole basket)
-6. **Wait** — markets resolve on Polymarket, settler proposes on-chain settlement
-7. **Claim** — if settlement index > your entry index, you profit. Collect payout.
-8. **Repeat** — claim more CHIP in an hour, bet on your own or someone else's basket
+1. **Choose a basket** — read `BasketMarket/GetBasket` and require `status: Active`; the indexer may lag.
+2. **Match the asset kind** — only `Vara` baskets are part of the current betting flow. They take wallet VARA or FreebetLedger credit; the voucher only pays gas.
+3. **Get a fresh signed quote** — the current contracts no longer accept a manually supplied entry index.
+4. **Place one bet** — use the funded VARA or freebet lane, then check the resulting position. `BasketNotActive` means settlement began; choose another basket.
+5. **Wait and claim** — PnL is realized after basket settlement.
 
 You can also skip steps 2-4 and bet on an existing basket created by another user.
 
-## CHIP Token
-
-CHIP is the platform's free betting token (BetToken contract). Agents earn CHIP through:
-- **Hourly claim** — call `BetToken/Claim` once per hour. Reward = `base_claim_amount + streak_step × (streak_days − 1)`, capped at `max_claim_amount`. Season 3 defaults: 500 base, +10/streak-day, max 600.
-- **Per-UTC-day streak bonuses** — the streak counter advances on each new UTC calendar day you claim (multiple claims within the same UTC day do NOT raise it). Miss a full UTC day → streak resets to 1. Cap is `streak_cap_days` (default 11).
-- **Winning bets** — payouts from settled baskets
-
-CHIP is used to bet on baskets via the BetLane contract (approve CHIP → place bet).
-
 ## Native VARA Freebet
 
-Native VARA freebet is a separate non-withdrawable balance stored in `FreebetLedger`. It is not CHIP and it is not wallet-owned spendable VARA.
+Native VARA freebet is a separate non-withdrawable balance stored in `FreebetLedger`. It is not wallet-owned spendable VARA.
 
 The flow is:
 
@@ -77,7 +65,7 @@ See `../references/index-math.md` for formulas and worked examples.
 ### Position
 
 A user's bet on a basket. Records:
-- `shares` — amount of VARA (native lane) or CHIP/BetToken (BetLane) wagered
+- `shares` — amount of VARA wagered
 - `index_at_creation_bps` — the entry index. If the same user bets on the same basket more than once, the contract stores a share-weighted average entry index.
 - `claimed` — whether payout has been collected
 
@@ -107,27 +95,18 @@ Active  →  SettlementPending  →  Settled
 | Program | Role |
 |---------|------|
 | **BasketMarket** | Core contract: baskets, VARA bets, settlements, claims |
-| **BetToken** | CHIP fungible token with **hourly** claim (500 base, +10 per UTC-day streak, cap 600 at day 11) |
-| **BetLane** | Primary betting lane using CHIP tokens (Bet asset kind) |
 | **FreebetLedger** | Native VARA freebet balance ledger; spends into Vara baskets and receives returned principal |
 
-## Two Asset Kinds
+## Current Asset Kind
 
-Each basket has an `asset_kind` set at creation:
-
-- **Bet (CHIP)** — the default. Users bet with CHIP tokens via BetLane (claim hourly → approve → bet). This is the primary path for agents.
-- **Vara** — users bet with native VARA tokens via BasketMarket. Native VARA freebet also uses Vara baskets through FreebetLedger. May be disabled on some deployments.
-
-The asset kind determines which program handles bets and claims for that basket.
+Create only `asset_kind: "Vara"` baskets. Legacy `Bet` baskets may still appear in historical views, but they are not supported for new bets. Users bet with wallet VARA via BasketMarket or freebet credit via FreebetLedger. The wallet or ledger must fund the stake; the voucher only funds gas.
 
 ## Where to Go Next
 
-**Full flow (recommended):**
-1. Claim CHIP tokens: `../basket-bet/SKILL.md` (Step 1)
-2. Search markets and create a basket: `../basket-create/SKILL.md`
-3. Approve and bet on your basket: `../basket-bet/SKILL.md` (Steps 4-5)
-3. Browse baskets and check positions: `../basket-query/SKILL.md`
-4. Claim payout: `../basket-claim/SKILL.md`
+**Choose the matching flow:**
+1. Browse baskets and verify chain status and asset kind: `../basket-query/SKILL.md`.
+2. For an `Active`/`Vara` basket, use wallet VARA through `../basket-bet/SKILL.md` or freebet credit through `../basket-freebet/SKILL.md`.
+3. Claim a finalized position through `../basket-claim/SKILL.md`.
 
 **Native VARA freebet flow:**
 - Spend non-withdrawable VARA freebet balance: `../basket-freebet/SKILL.md`

@@ -1,14 +1,14 @@
 ---
 name: basket-freebet
-description: Use when the agent needs to place or claim native VARA freebet bets through FreebetLedger. This is NOT the CHIP/BetLane flow: use it for FreebetLedger BalanceOf, SpendFreebet, GetFreebetPositions, Vara baskets, and the principal-return/profit-only claim model.
+description: >-
+  Use when the agent needs to place or claim native VARA freebet bets through FreebetLedger: BalanceOf, SpendFreebet, GetFreebetPositions, Vara baskets, and principal-return/profit-only claims.
 ---
 
 # Basket Freebet
 
 Place native VARA freebet bets through `FreebetLedger/SpendFreebet`.
 
-This path is separate from the Season 3 CHIP lane:
-- **CHIP lane**: `BetToken/Claim` -> `BetToken/Approve` -> `BetLane/PlaceBet`.
+This is the current non-withdrawable VARA credit path. A gas voucher pays fees but does not increase the FreebetLedger balance.
 - **Native VARA freebet lane**: existing `FreebetLedger` balance -> `FreebetLedger/SpendFreebet` -> `BasketMarket` records a freebet position.
 
 Freebet principal is non-withdrawable. On claim, the principal returns to `FreebetLedger`; only profit above the stake is paid to the user's wallet.
@@ -21,10 +21,9 @@ Freebet principal is non-withdrawable. On claim, the principal returns to `Freeb
 vara-wallet config set network mainnet
 
 BASKET_MARKET="0xa749ccd80d71637b450789e12e3d94524e9ae17877d1b59f5ddda784f89a2cba"
-BET_TOKEN="0x186f6cda18fea13d9fc5969eec5a379220d6726f64c1d5f4b346e89271f917bc"
-BET_LANE="0x35848dea0ab64f283497deaff93b12fe4d17649624b2cd5149f253ef372b29dc"
 FREEBET_LEDGER="0x2bb74834402fb7da9144d2ab91c1570e97237ad0ead1f7feb392162c3e3ad64e"
 VOUCHER_URL="https://voucher-backend-production-5a1b.up.railway.app/voucher"
+BET_QUOTE_URL="https://bet-quote-service-production.up.railway.app"
 _PB="${POLYBASKETS_SKILLS_DIR:-skills}"
 IDL="$_PB/idl/polymarket-mirror.idl"
 FREEBET_LEDGER_IDL="$_PB/idl/freebet-ledger.idl"
@@ -61,7 +60,7 @@ fi
 if [ "$VOUCHER_ID" = "null" ] || [ "$HAS_FREEBET_LEDGER" != "true" ] || [ "$HAS_BASKET_MARKET" != "true" ] || { [ "$NEED_TOP_UP" = "true" ] && [ "$CAN_TOP_UP" = "true" ]; }; then
   RESP=$(curl -s -w "\n%{http_code}" -X POST "$VOUCHER_URL" \
     -H 'Content-Type: application/json' \
-    -d '{"account":"'"$MY_ADDR"'","programs":["'"$BASKET_MARKET"'","'"$BET_TOKEN"'","'"$BET_LANE"'","'"$FREEBET_LEDGER"'"]}')
+    -d '{"account":"'"$MY_ADDR"'","programs":["'"$BASKET_MARKET"'","'"$FREEBET_LEDGER"'"]}')
   HTTP_CODE=$(echo "$RESP" | tail -n1)
   BODY=$(echo "$RESP" | sed '$d')
   case "$HTTP_CODE" in
@@ -97,7 +96,7 @@ If either check fails, do not place a freebet. Report the configuration mismatch
 
 ```bash
 FREEBET_BALANCE=$(vara-wallet call $FREEBET_LEDGER FreebetLedger/BalanceOf \
-  --args '["'$MY_ADDR'"]' --idl $FREEBET_LEDGER_IDL | jq -r '.result')
+  --args '["'$MY_ADDR'"]' --idl $FREEBET_LEDGER_IDL | jq -r '.result.value // .result.ok // .result')
 echo "Freebet balance raw: $FREEBET_BALANCE"
 ```
 
@@ -114,7 +113,7 @@ vara-wallet call $BASKET_MARKET BasketMarket/IsVaraEnabled \
   --args '[]' --idl $IDL
 
 vara-wallet call $BASKET_MARKET BasketMarket/GetBasket \
-  --args '[<BASKET_ID>]' --idl $IDL | jq '.result.ok | {id, name, status, asset_kind, items}'
+  --args '[<BASKET_ID>]' --idl $IDL | jq '(.result.value // .result.ok) | {id, name, status:(.status.kind // .status), asset_kind:(.asset_kind.kind // .asset_kind), items}'
 ```
 
 Required:
@@ -122,44 +121,11 @@ Required:
 - basket `status` is `"Active"`.
 - basket `asset_kind` is `"Vara"`.
 
-If the current deployment is CHIP-only, do not try `SpendFreebet`; use `basket-bet/SKILL.md` instead.
+If `BasketMarket/IsVaraEnabled` is false, stop; freebet spending is unavailable.
 
-## Compute Entry Index
+## Signed VARA quote
 
-`FreebetLedger/SpendFreebet` takes `index_at_creation_bps` directly. Do not use the BetLane quote service for this path; it validates `asset_kind: "Bet"` and signs quotes for `BetLane`, not for native freebet.
-
-Compute the current basket index from live Polymarket Gamma prices immediately before sending:
-
-```bash
-BASKET_JSON=$(vara-wallet call $BASKET_MARKET BasketMarket/GetBasket \
-  --args '[<BASKET_ID>]' --idl $IDL | jq -c '.result.ok')
-
-INDEX_BPS=$(node -e '
-const basket = JSON.parse(process.argv[1]);
-async function main() {
-  let weighted = 0;
-  for (const item of basket.items) {
-    const res = await fetch(`https://gamma-api.polymarket.com/markets/${item.poly_market_id}`);
-    if (!res.ok) throw new Error(`Gamma fetch failed for ${item.poly_market_id}: ${res.status}`);
-    const market = await res.json();
-    const prices = JSON.parse(market.outcomePrices);
-    const selected = String(item.selected_outcome ?? item.selectedOutcome).toUpperCase();
-    const probability = Number(selected === "YES" ? prices[0] : prices[1]);
-    if (!Number.isFinite(probability) || probability <= 0 || probability > 1) {
-      throw new Error(`Invalid ${selected} probability for ${item.poly_market_id}`);
-    }
-    weighted += Number(item.weight_bps ?? item.weightBps) * probability;
-  }
-  const bps = Math.max(1, Math.min(10000, Math.round(weighted)));
-  console.log(bps);
-}
-main().catch((err) => { console.error(err.message); process.exit(1); });
-' "$BASKET_JSON")
-
-echo "index_at_creation_bps=$INDEX_BPS"
-```
-
-The index is a basis-point probability from 1 to 10000. Send the transaction right after computing it; stale prices create a worse entry.
+The deployed `FreebetLedger/SpendFreebet` accepts a `SignedVaraBetQuote`, not a manually computed index. Request it from `/api/basket-market/quote` for the **BasketMarket** target, then spend it before the short quote deadline.
 
 ## Spend Freebet
 
@@ -168,18 +134,24 @@ Use raw planck units for the amount:
 - 10 VARA = `"10000000000000"`
 - 100 VARA = `"100000000000000"`
 
-There is no CHIP approval step. The ledger debits the caller's freebet balance and forwards the amount as native value to `BasketMarket/BetOnBasketFromFreebetLedger`.
+The ledger debits the caller's freebet balance and forwards the amount as native value to `BasketMarket/BetOnBasketFromFreebetLedger`.
 
 ```bash
 BASKET_ID=<BASKET_ID>
 FREEBET_AMOUNT="10000000000000" # 10 VARA freebet
-
+QUOTE=$(curl -s -X POST "$BET_QUOTE_URL/api/basket-market/quote" \
+  -H 'Content-Type: application/json' \
+  -d '{"user":"'"$MY_ADDR"'","basketId":'"$BASKET_ID"',"amount":"'"$FREEBET_AMOUNT"'","targetProgramId":"'"$BASKET_MARKET"'"}')
+echo "$QUOTE" | jq -e '.payload and .signature' >/dev/null 2>&1 || { echo "Quote failed: $QUOTE"; exit 1; }
+BASKET_CHECK=$(vara-wallet call "$BASKET_MARKET" BasketMarket/GetBasket \
+  --args "[$BASKET_ID]" --idl "$IDL" | jq -r '(.result.value // .result.ok) | [(.status.kind // .status), (.asset_kind.kind // .asset_kind)] | @tsv')
+[ "$BASKET_CHECK" = "$(printf 'Active\tVara')" ] || { echo "Basket is now $BASKET_CHECK; choose another"; exit 1; }
 EST=$(vara-wallet --account agent call $FREEBET_LEDGER FreebetLedger/SpendFreebet \
-  --args '["'$BASKET_MARKET'", '$BASKET_ID', "'$FREEBET_AMOUNT'", '$INDEX_BPS']' \
+  --args "[\"$BASKET_MARKET\", $BASKET_ID, \"$FREEBET_AMOUNT\", $QUOTE]" \
   --voucher $VOUCHER_ID --idl $FREEBET_LEDGER_IDL --estimate) && \
 GAS_LIMIT=$(node -e 'const x=JSON.parse(process.argv[1]); const used=BigInt(x.min_limit??x.minLimit??x.gas_for_reply??x.gasForReply??0); const withBuffer=used + used/5n + 5000000000n; console.log(withBuffer.toString())' "$EST") && \
 vara-wallet --account agent call $FREEBET_LEDGER FreebetLedger/SpendFreebet \
-  --args '["'$BASKET_MARKET'", '$BASKET_ID', "'$FREEBET_AMOUNT'", '$INDEX_BPS']' \
+  --args "[\"$BASKET_MARKET\", $BASKET_ID, \"$FREEBET_AMOUNT\", $QUOTE]" \
   --voucher $VOUCHER_ID --gas-limit $GAS_LIMIT --idl $FREEBET_LEDGER_IDL
 ```
 
@@ -189,13 +161,13 @@ If the mutation returns `0`, treat it as downstream bet failure and verify state
 
 ```bash
 vara-wallet call $BASKET_MARKET BasketMarket/GetFreebetPositions \
-  --args '["'$MY_ADDR'"]' --idl $IDL | jq '.result[] | select(.basket_id == '$BASKET_ID')'
+  --args '["'$MY_ADDR'"]' --idl $IDL | jq '(.result.value // .result.ok // .result)[] | select(.basket_id == '$BASKET_ID')'
 
 vara-wallet call $FREEBET_LEDGER FreebetLedger/BalanceOf \
   --args '["'$MY_ADDR'"]' --idl $FREEBET_LEDGER_IDL
 ```
 
-If no freebet position exists after a failed or ambiguous send, recompute `INDEX_BPS`, check `BalanceOf`, and retry once with a higher gas buffer. Do not blind-loop `SpendFreebet`; the ledger rejects concurrent `(user, basket, program)` spends with `OperationInProgress`.
+If no freebet position exists after a failed or ambiguous send, check `BalanceOf` and the on-chain basket status. Request a **new quote** before one retry; the old quote may have expired. Never retry `BasketNotActive` on the same basket. Do not blind-loop `SpendFreebet`; the ledger rejects concurrent `(user, basket, program)` spends with `OperationInProgress`.
 
 ## Claim Freebet Basket Profit
 
@@ -203,7 +175,7 @@ Freebet positions are claimed through `BasketMarket/Claim`, the same method as n
 
 ```bash
 vara-wallet call $BASKET_MARKET BasketMarket/GetSettlement \
-  --args "[$BASKET_ID]" --idl $IDL | jq '.result.ok.status'
+  --args "[$BASKET_ID]" --idl $IDL | jq '(.result.value // .result.ok) | .status.kind // .status'
 
 vara-wallet --account agent call $BASKET_MARKET BasketMarket/Claim \
   --args "[$BASKET_ID]" --voucher $VOUCHER_ID --idl $IDL
@@ -219,7 +191,7 @@ After claim, verify both:
 
 ```bash
 vara-wallet call $BASKET_MARKET BasketMarket/GetFreebetPositions \
-  --args '["'$MY_ADDR'"]' --idl $IDL | jq '.result[] | select(.basket_id == '$BASKET_ID')'
+  --args '["'$MY_ADDR'"]' --idl $IDL | jq '(.result.value // .result.ok // .result)[] | select(.basket_id == '$BASKET_ID')'
 
 vara-wallet call $FREEBET_LEDGER FreebetLedger/BalanceOf \
   --args '["'$MY_ADDR'"]' --idl $FREEBET_LEDGER_IDL
@@ -232,7 +204,7 @@ vara-wallet call $FREEBET_LEDGER FreebetLedger/BalanceOf \
 3. Read `FreebetLedger/BalanceOf`; stop if balance is zero or below intended size.
 4. Scan/create only `asset_kind: "Vara"` baskets, and confirm `IsVaraEnabled=true`.
 5. Form a market thesis from Gamma market descriptions and resolution criteria.
-6. Compute `INDEX_BPS` immediately before each bet.
+6. Request a fresh signed BasketMarket quote immediately before each bet.
 7. Call `FreebetLedger/SpendFreebet` sequentially with explicit `--gas-limit`.
 8. Verify `GetFreebetPositions` and ledger balance after every bet.
 9. Stop and report freebet balance before/after, baskets bet, amount spent, claims recovered, skipped baskets, and failed operations.
@@ -252,8 +224,8 @@ Suggested sizing:
 | `OperationInProgress` | Pending spend for same user/program/basket | Wait, query freebet position and balance, retry once only if unchanged |
 | `DownstreamBetFailed` / result `0` | BasketMarket rejected the bet | Check basket status, asset kind, VARA enabled, and index |
 | `InvalidFreebetAmount` | Amount is zero or no value reached BasketMarket | Use non-zero raw amount |
-| `BasketAssetMismatch` | Basket is `Bet`, not `Vara` | Use a `Vara` basket or CHIP lane instead |
+| `BasketAssetMismatch` | Basket is legacy `Bet`, not `Vara` | Choose a `Vara` basket |
 | `VaraDisabled` | Native VARA lane disabled | Stop; freebet spending cannot work on this deployment |
-| `InvalidIndexAtCreation` | Index is outside 1..10000 | Recompute and clamp from current Gamma prices |
+| `InvalidIndexAtCreation` | Signed quote has an invalid quoted index | Request a fresh quote; never invent the index locally |
 | `FreebetLedgerNotConfigured` | BasketMarket has no ledger configured or caller is not ledger | Stop and report config issue |
 | `FreebetLedgerReturnFailed` | Claim could not return principal to ledger | Stop and report; do not retry blindly |

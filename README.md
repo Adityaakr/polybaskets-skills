@@ -2,16 +2,16 @@
 
 AI agent skill pack for [PolyBaskets](https://github.com/Adityaakr/polybaskets-skills) — an ETF-style prediction market aggregator on Vara Network.
 
-**The default agent loop:** claim free CHIP tokens hourly → bet on prediction baskets → collect payouts when markets resolve → repeat.
+**The current agent loop:** confirm wallet VARA or freebet credit → select an active VARA basket → place a signed bet → verify the position → claim after settlement.
 
-Native VARA freebet balances are handled separately through `FreebetLedger`; use `basket-freebet` for that path.
+Native VARA freebet balances are handled through `FreebetLedger`; use `basket-freebet` for that path. Gas vouchers cover transaction fees only, not stakes. Legacy CHIP baskets remain historical records, not a current betting route.
 
 ## Prerequisites
 
 - [vara-wallet](https://github.com/gear-foundation/vara-wallet) CLI: `npm install -g vara-wallet`
 - [vara-skills](https://github.com/gear-foundation/vara-skills) skill pack: `npx skills add gear-foundation/vara-skills`
 - A vara-wallet account: `vara-wallet wallet create --name agent`
-- Gas via the PolyBaskets voucher claim process (no VARA purchase needed)
+- Gas via the PolyBaskets voucher claim process; a bet additionally needs authorized wallet VARA or FreebetLedger credit
 
 ## Installation
 
@@ -45,10 +45,10 @@ ln -s /path/to/polybaskets/skills ~/.claude/skills/polybaskets-skills
 
 | Skill | Purpose |
 |-------|---------|
-| `basket-bet` | **Start here** — claim CHIP, pick a basket, place bets |
+| `basket-bet` | **Start here** — verify an active VARA basket and place a funded bet |
 | `basket-freebet` | Spend native VARA freebet balance through FreebetLedger |
 | `basket-query` | Browse baskets, check positions and settlements |
-| `basket-claim` | Claim payout from settled baskets |
+| `basket-claim` | Claim VARA or freebet profit from settled baskets |
 | `polybaskets-overview` | Understand the protocol — index math, payout formula, settlement |
 | `basket-create` | Create a new prediction basket on-chain |
 | `basket-settle` | Propose settlements (settler role) and finalize existing proposals after the challenge deadline |
@@ -59,12 +59,9 @@ See **[STARTER_PROMPT.md](STARTER_PROMPT.md)** for copy-paste prompts you can dr
 
 | Prompt | For |
 |--------|-----|
-| **Main Prompt — Full Session** | New + returning agents — full Season 3 trading session with hourly CHIP claim, conviction-sized bets, bounded ~60-90 TX |
+| **Main prompt** | New + returning agents — funded VARA/freebet trading with position verification |
 | **Check my bets and balances** | Check positions and claim settled payouts |
-| **Hourly routine (returning user)** | Runs the session loop with hourly CHIP + drained-voucher STOP rule |
 | **Explore markets only** | Research active Polymarket markets without betting |
-| **Claim all payouts** | Claim all Finalized basket payouts |
-| **Max volume session** | Fully autonomous — executes the Main Prompt without asking questions |
 
 Works with: Claude Code, Gemini CLI, Cursor, Codex, or any agent with shell access.
 
@@ -72,7 +69,7 @@ Works with: Claude Code, Gemini CLI, Cursor, Codex, or any agent with shell acce
 
 ```bash
 /polybaskets-skills              # Router — shows the agent loop and routes to sub-skills
-/polybaskets-skills:basket-bet   # Start the loop — claim CHIP and bet
+/polybaskets-skills:basket-bet   # Verify an active VARA basket and funded stake
 /polybaskets-skills:basket-freebet # Spend native VARA freebet balance
 /polybaskets-skills:basket-query # Browse baskets and check results
 ```
