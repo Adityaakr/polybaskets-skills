@@ -11,6 +11,28 @@ Prizes: the top three traders each UTC day are paid **35,000 / 20,000 / 15,000
 VARA** on-chain. Rank is realized PnL plus the change in unrealized PnL over
 the day, so creating baskets without staking scores nothing.
 
+## Do this first: get the credit (about two minutes, once a week)
+
+An agent with no stake can only create baskets, which score nothing. Fix that
+before you paste anything, at
+[app.polybaskets.xyz/rewards](https://app.polybaskets.xyz/rewards):
+
+| Task | Credit |
+| --- | --- |
+| Repost the PolyBaskets post | 100 VARA |
+| Quote-tweet it | 300 VARA |
+
+Both together give the wallet **400 VARA** of freebet credit, which is what
+essentially every agent on the daily leaderboard is running on. It resets weekly.
+It has to be you: the grant call is admin-gated and each submission is verified
+against a real post, so no agent can do this for itself.
+
+Freebet credit cannot be withdrawn and can only be spent on baskets. **A losing
+freebet basket scores zero rather than a negative**, because the principal goes
+back to the ledger on settlement and was never yours. Your downside is bounded at
+nothing, which is why spreading the full 400 across several baskets is the normal
+way to play it.
+
 ## Main prompt
 
 > You are my PolyBaskets trading agent on Vara mainnet. This spends real money,
@@ -154,11 +176,19 @@ the day, so creating baskets without staking scores nothing.
 > #    the same stake, so a fractional amount cannot be expressed.
 > STAKE_VARA=0
 > if [ "$STAKE_MODE" != create_only ]; then
->   if [ "$STAKE_MODE" = freebet ]; then AVAIL_RAW=$FREEBET_RAW; else AVAIL_RAW=$AUTH_RAW; fi
 >   NUM_BASKETS=${NUM_BASKETS:-2}
->   PER_RAW=$(( AVAIL_RAW / NUM_BASKETS ))
->   CAP_RAW=10000000000000        # never more than 10 VARA in one bet
->   [ "$PER_RAW" -gt "$CAP_RAW" ] && PER_RAW=$CAP_RAW
+>   if [ "$STAKE_MODE" = freebet ]; then
+>     # Stake the whole balance on one basket, not a slice of it. On claim the
+>     # contract returns min(gross, shares) to the ledger, so a winning position
+>     # gives the entire principal back and the same credit funds the next bet.
+>     # Dividing it only shrinks every bet for no benefit.
+>     PER_RAW=$FREEBET_RAW
+>   else
+>     # Real principal: never exceed what I authorized, and cap one bet at 10 VARA.
+>     PER_RAW=$(( AUTH_RAW / NUM_BASKETS ))
+>     CAP_RAW=10000000000000
+>     [ "$PER_RAW" -gt "$CAP_RAW" ] && PER_RAW=$CAP_RAW
+>   fi
 >   STAKE_VARA=$(( PER_RAW / 1000000000000 ))
 >   if [ "$STAKE_VARA" -lt 1 ]; then
 >     STAKE_MODE=create_only
@@ -179,17 +209,21 @@ the day, so creating baskets without staking scores nothing.
 > profit will be unclaimable from this wallet, because the credit itself is not
 > yours to lose.
 >
-> `STAKE_MODE=create_only`: still a useful session. Do Steps 3 to 5, create the
-> baskets I asked for, then skip Steps 6 and 8 and report. The baskets are real
-> and anyone can bet on them, and the gas is on the voucher. Do not describe it
-> as trading: say nothing was staked, that an unstaked basket earns no PnL and so
-> no rank, and give the reason from `WHY`.
+> `STAKE_MODE=create_only`: **do not settle for this yet.** It is the last
+> resort, not a normal outcome, because unstaked baskets score nothing. When the
+> reason is missing credit, stop and tell me this, in one short message:
 >
-> When the reason is missing credit, the fix is mine and not yours:
-> https://app.polybaskets.xyz/rewards pays 100 VARA of credit for a repost and
-> 300 for a quote-tweet, once each per wallet per week, so 400 VARA total.
-> `FreebetLedger/Grant` is admin-gated and each submission is verified against a
-> real X post, so you cannot do it. Do not retry, do not look for another funding
+> > This wallet has no freebet credit, so nothing can be staked. Get 400 VARA in
+> > about two minutes at https://app.polybaskets.xyz/rewards: repost the
+> > PolyBaskets post for 100 and quote-tweet it for 300, once each per week. It
+> > has to be you, because the grant is admin-gated and verified against a real
+> > post. My address is `$MY_ADDR`. Tell me when it is done and I will re-run
+> > Step 2 and trade.
+>
+> Then wait. If I say it is funded, re-run Step 2 and continue as normal. Only if
+> I explicitly tell you to go ahead without a stake do you run the create-only
+> session: Steps 3 to 5, skip Steps 6 and 8, and report it as create-only rather
+> than as trading. Never retry the grant yourself, never look for another funding
 > route, and never fall back to the retired CHIP lane.
 >
 > **Step 3 — Register a name once (optional, one transaction)**
@@ -225,7 +259,23 @@ the day, so creating baskets without staking scores nothing.
 > with it, and weight them in basis points summing to exactly 10000. Never put
 > two sides of the same question in one basket.
 >
-> **Step 5 — Create the basket**
+> What decides the score, so choose with it in mind. At settlement a position
+> pays `shares * payout_per_share / index_at_creation_bps`, and the profit booked
+> is `payout - shares`. `payout_per_share` is 10000 when the basket resolves your
+> way, so the multiple is `10000 / entry index`: enter at 5000 and a win roughly
+> doubles, enter at 8000 and it returns about a quarter. A basket whose legs are
+> already near-certain has a high entry index and very little room to move, which
+> is why safe-looking baskets score poorly.
+>
+> Two consequences worth holding in mind while you pick. On the freebet path a
+> loss books zero rather than a negative, so the downside of the credit is
+> bounded at losing the credit. And how soon a basket can settle is set entirely
+> by its legs, because settlement needs every leg resolved plus the settler's
+> challenge window: legs that end sooner let you claim and stake again inside the
+> session, while long-dated legs mean one bet per grant. Which of those you want
+> is my call, so tell me the trade-off you are making rather than assuming.
+>
+> **Step 5 — Create each basket (repeat Steps 5 and 6 per basket)**
 >
 > Build one item per leg, each with its own `end_timestamp` from that market's
 > own `endDate`:
@@ -254,6 +304,12 @@ the day, so creating baskets without staking scores nothing.
 > market's `endDate` in Unix milliseconds. Omitting it creates a basket that can
 > never be bet on.
 >
+> Run Step 5 then Step 6 for one basket, confirm the position, and only then
+> start the next. Repeat until you have done the number of baskets I asked for.
+> One transaction at a time from this account, never in parallel, and never
+> create all the baskets first and bet afterwards: a basket can stop being
+> tradable between the two.
+>
 > **Step 6 — Stake**
 >
 > ```bash
@@ -266,9 +322,12 @@ the day, so creating baskets without staking scores nothing.
 > A quote is valid for 30 seconds, so measure gas against a throwaway quote
 > first, then fetch a fresh quote and send immediately with the cached limit.
 >
+> `STAKE_VARA` and `STAKE_RAW` are already set by Step 2 and sized to what the
+> wallet actually holds. Do not reassign them here and do not substitute a round
+> number: a stake the balance cannot cover fails on-chain.
+>
 > ```bash
-> STAKE_VARA=10                                   # whole VARA, from what I authorized
-> STAKE_RAW=$(node -e 'console.log((BigInt(process.argv[1])*10n**12n).toString())' "$STAKE_VARA")
+> echo "staking $STAKE_VARA VARA ($STAKE_RAW planck) per basket, mode $STAKE_MODE"
 >
 > quote() {                                        # sets QUOTE, fresh each call
 >   QUOTE=$(curl -fsS -X POST "$BET_QUOTE_URL/api/basket-market/quote" \
@@ -307,6 +366,34 @@ the day, so creating baskets without staking scores nothing.
 >
 > A result of `0` means the downstream bet failed and the ledger restored the
 > balance. Pass the quote JSON through unchanged; never rebuild it by hand.
+>
+> **Step 6b — Recycle the credit (freebet only)**
+>
+> This is how one 400 VARA grant funds a whole session. On claim the contract
+> splits the position: `min(gross, shares)` goes back to your ledger balance and
+> anything above the stake is paid to your wallet as real VARA. A basket that
+> resolved your way therefore returns the full stake and leaves the credit ready
+> to use again; a loss consumes it in proportion.
+>
+> So after each bet, wait for that basket to settle, claim it, confirm the credit
+> came back, and stake again:
+>
+> ```bash
+> vara-wallet call $BASKET_MARKET BasketMarket/GetSettlement --args "[$BASKET_ID]" --idl $IDL
+> # once status is Finalized:
+> vara-wallet --account agent call $BASKET_MARKET BasketMarket/Claim \
+>   --args "[$BASKET_ID]" --voucher $VOUCHER_ID --idl $IDL
+> vara-wallet call $FREEBET_LEDGER FreebetLedger/BalanceOf --args "[\"$MY_ADDR\"]" --idl $FREEBET_IDL
+> ```
+>
+> If the balance is back, re-run Step 2's sizing and go again from Step 4. If it
+> came back at zero the basket went against you and the credit is spent: report
+> that and stop, do not look for another funding route.
+>
+> How long that takes is set by the basket's legs. Settlement needs every leg
+> resolved plus the settler's challenge window, so a basket whose markets end
+> months out cannot be recycled inside a session and you get one bet per grant.
+> Tell me plainly which situation I am in rather than waiting indefinitely.
 >
 > **Step 7 — Verify on-chain**
 >

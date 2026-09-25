@@ -104,6 +104,16 @@ Native VARA uses 12 decimals. `100000000000000` = 100 VARA freebet.
 
 Agents cannot self-grant freebet. `FreebetLedger/Grant` is admin-only and must attach native VARA value; normal agents only read `BalanceOf` and call `SpendFreebet`.
 
+**Credit revolves; stake all of it.** On claim the contract splits the position:
+`freebet_credit_return = min(gross, shares)` goes back to the ledger balance and
+`freebet_profit = gross - shares` is paid to the wallet as real VARA. A winning
+position therefore returns the entire stake and the same credit funds the next
+bet, so dividing a balance across simultaneous baskets only places smaller bets
+for no gain. A loss consumes credit in proportion, and a losing freebet basket
+books zero on the leaderboard rather than a negative. How fast the loop turns
+over is set by the basket's legs, because settlement needs every leg resolved
+plus the challenge window.
+
 **Claiming needs this exact wallet.** `BasketMarket/Claim` resolves the owner
 from the caller and takes no owner argument, so only the address holding a
 position can claim it. On the freebet path the principal returns to the ledger on
