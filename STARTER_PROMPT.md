@@ -20,20 +20,19 @@ the day, so creating baskets without staking scores nothing.
 >
 > **Ask me first (one message, then wait)**
 >
-> 1. **Stake.** How much am I authorizing, and from where? Either "freebet
->    credit only" (non-withdrawable, spendable only on baskets), a specific
->    amount of wallet VARA such as "20 VARA total", or "nothing, just create
->    baskets". Without an explicit amount from me, do not stake anything.
->    If I authorize a stake, also tell me whether this agent wallet's key
->    survives a restart. If you are running in a disposable sandbox or container
->    whose filesystem is wiped between sessions, say so plainly here: `Claim` is
->    callable only by the address that holds a position, so a stake from a key
->    you are about to lose is unrecoverable whether it wins or loses. Creating
->    baskets is safe either way, because a basket never needs claiming.
-> 2. **Theme.** What should the baskets express? For example "Bitcoin strength
+> 1. **Theme.** What should the baskets express? For example "Bitcoin strength
 >    this week", "the Fed holds", or "surprise me" and you choose high-volume
 >    markets.
-> 3. **How many baskets** this session? 1 to 5, default 2.
+> 2. **How many baskets** this session? 1 to 5, default 2.
+> 3. **Wallet VARA, only if you want it.** By default this session stakes
+>    freebet credit if the wallet has any, and stakes nothing otherwise. That
+>    needs no permission from me, because freebet credit is not withdrawable and
+>    can only ever be spent on baskets. If you also want real VARA from the
+>    wallet at risk, say the amount now, for example "up to 20 VARA". Say nothing
+>    and no wallet VARA is touched.
+>
+> Do not ask me about balances, funding or key storage. Step 2 determines all of
+> that by itself and tells you what it found.
 >
 > Run everything below as a **bash script** (the blocks use bash syntax and
 > `exit`, which would close an interactive shell). All `vara-wallet` commands
@@ -97,57 +96,101 @@ the day, so creating baskets without staking scores nothing.
 > Use this function again whenever a call returns `VOUCHER_EXPIRED`: vouchers
 > lapse after about a day of inactivity.
 >
-> **Step 2 — Decide whether this session can stake**
+> **Step 2 — Work out what this session can do**
 >
-> This step sets `CREATE_ONLY` once and every later step obeys it. Run it as
-> written rather than eyeballing the balances, so the outcome is a variable and
-> not a judgement call.
+> Do not ask me any of this and do not judge it by eye. Run the block; it sets
+> `STAKE_MODE` and every later step obeys it.
 >
 > ```bash
-> # From my answer to question 1:
-> STAKE_SOURCE=freebet   # freebet | wallet | none
-> STAKE_VARA=0           # whole VARA per bet; 0 if I authorized no stake
-> KEY_PERSISTED=false    # true ONLY if I confirmed this key survives a restart
->
+> # 1. What is actually available.
 > FREEBET_RAW=$(vara-wallet call $FREEBET_LEDGER FreebetLedger/BalanceOf \
 >   --args "[\"$MY_ADDR\"]" --idl $FREEBET_IDL \
 >   | jq -r 'if (.result|type)=="object" then (.result.value // .result.ok // 0) else (.result // 0) end | tostring')
 > WALLET_RAW=$(vara-wallet balance --account agent | jq -r '.balanceRaw // "0"')
 > case "$FREEBET_RAW" in ''|*[!0-9]*) FREEBET_RAW=0 ;; esac
 > case "$WALLET_RAW"  in ''|*[!0-9]*) WALLET_RAW=0  ;; esac
-> STAKE_RAW=$(( STAKE_VARA * 1000000000000 ))
-> echo "freebet credit: $FREEBET_RAW planck | wallet: $WALLET_RAW planck | authorized: $STAKE_RAW planck"
 >
-> CREATE_ONLY=true
-> STAKE_BLOCKED_BECAUSE="I did not authorize a stake"
-> if [ "$STAKE_RAW" -gt 0 ] && [ "$KEY_PERSISTED" != true ]; then
->   STAKE_BLOCKED_BECAUSE="this wallet's key does not survive a restart, so any position would be unclaimable"
-> elif [ "$STAKE_SOURCE" = freebet ] && [ "$STAKE_RAW" -gt 0 ] && [ "$FREEBET_RAW" -lt "$STAKE_RAW" ]; then
->   STAKE_BLOCKED_BECAUSE="freebet credit is $FREEBET_RAW planck, short of the $STAKE_RAW authorized"
-> elif [ "$STAKE_SOURCE" = wallet ] && [ "$STAKE_RAW" -gt 0 ] && [ "$WALLET_RAW" -lt "$STAKE_RAW" ]; then
->   STAKE_BLOCKED_BECAUSE="wallet holds $WALLET_RAW planck, short of the $STAKE_RAW authorized"
-> elif [ "$STAKE_RAW" -gt 0 ]; then
->   CREATE_ONLY=false
->   STAKE_BLOCKED_BECAUSE=""
+> # 2. Will this key still exist later? BasketMarket/Claim resolves the owner
+> #    from msg::source() and takes no owner argument, so a position is
+> #    claimable only by this exact wallet. A marker left by an earlier run is
+> #    proof the filesystem persists; with no marker yet, container signals
+> #    decide and the answer is assumed unsafe.
+> MARKER="$HOME/.vara-wallet/.pb-persist"
+> BOOT_ID=$( (cat /proc/sys/kernel/random/boot_id 2>/dev/null \
+>   || sysctl -n kern.boottime 2>/dev/null || echo unknown) | tr -d ' \t' )
+> KEY_PERSISTED=false
+> if [ -f "$MARKER" ] && ! grep -qxF "$BOOT_ID" "$MARKER" 2>/dev/null; then
+>   KEY_PERSISTED=true      # written under a different boot, so it survived one
+> elif [ ! -f /.dockerenv ] \
+>   && ! grep -qaE 'docker|containerd|kubepods|lxc' /proc/1/cgroup 2>/dev/null; then
+>   KEY_PERSISTED=true      # an ordinary host filesystem
 > fi
-> echo "CREATE_ONLY=$CREATE_ONLY ${STAKE_BLOCKED_BECAUSE:+(reason: $STAKE_BLOCKED_BECAUSE)}"
+> mkdir -p "$HOME/.vara-wallet" && printf '%s\n' "$BOOT_ID" >> "$MARKER" 2>/dev/null || true
+>
+> # 3. Pick the mode. Freebet credit is not withdrawable and its principal
+> #    returns to the ledger on claim, so an unclaimable freebet position costs
+> #    only forgone profit and is worth taking. Wallet VARA is real principal,
+> #    so it needs both my explicit authorization and a key that survives.
+> AUTHORIZED_WALLET_VARA=0        # whole VARA, only if I named a figure in answer 3
+> MIN_STAKE_RAW=1000000000000     # 1 VARA, the smallest bet worth placing
+> AUTH_RAW=$(( AUTHORIZED_WALLET_VARA * 1000000000000 ))
+>
+> STAKE_MODE=create_only
+> WHY="no freebet credit and no wallet VARA authorized"
+> if [ "$FREEBET_RAW" -ge "$MIN_STAKE_RAW" ]; then
+>   STAKE_MODE=freebet
+>   WHY=""
+> elif [ "$AUTH_RAW" -ge "$MIN_STAKE_RAW" ] && [ "$WALLET_RAW" -lt "$AUTH_RAW" ]; then
+>   WHY="wallet holds $WALLET_RAW planck, short of the $AUTH_RAW you authorized"
+> elif [ "$AUTH_RAW" -ge "$MIN_STAKE_RAW" ] && [ "$KEY_PERSISTED" != true ]; then
+>   WHY="this looks like a disposable container, so real VARA staked here could never be claimed back"
+> elif [ "$AUTH_RAW" -ge "$MIN_STAKE_RAW" ]; then
+>   STAKE_MODE=wallet
+>   WHY=""
+> fi
+>
+> # 4. Size each bet from what is there, never more. Whole VARA only: the quote
+> #    carries planck and --value carries whole VARA, and the two must describe
+> #    the same stake, so a fractional amount cannot be expressed.
+> STAKE_VARA=0
+> if [ "$STAKE_MODE" != create_only ]; then
+>   if [ "$STAKE_MODE" = freebet ]; then AVAIL_RAW=$FREEBET_RAW; else AVAIL_RAW=$AUTH_RAW; fi
+>   NUM_BASKETS=${NUM_BASKETS:-2}
+>   PER_RAW=$(( AVAIL_RAW / NUM_BASKETS ))
+>   CAP_RAW=10000000000000        # never more than 10 VARA in one bet
+>   [ "$PER_RAW" -gt "$CAP_RAW" ] && PER_RAW=$CAP_RAW
+>   STAKE_VARA=$(( PER_RAW / 1000000000000 ))
+>   if [ "$STAKE_VARA" -lt 1 ]; then
+>     STAKE_MODE=create_only
+>     WHY="the available stake works out to under 1 VARA per basket once split $NUM_BASKETS ways"
+>   fi
+> fi
+> STAKE_RAW=$(( STAKE_VARA * 1000000000000 ))
+>
+> echo "freebet: $FREEBET_RAW planck | wallet: $WALLET_RAW planck | key persists: $KEY_PERSISTED"
+> echo "STAKE_MODE=$STAKE_MODE stake per bet: $STAKE_RAW planck (${STAKE_VARA} VARA) ${WHY:+| reason: $WHY}"
 > ```
 >
-> **When `CREATE_ONLY=true`, keep going.** Do Steps 3 to 5 and create the
-> baskets I asked for, then skip Steps 6 and 8 entirely and report. Creating is
-> worth doing on its own: the baskets are real, anyone can bet on them, and gas
-> is on the voucher. Be straight about the limit in your report rather than
-> implying a session happened. Say that nothing was staked, that an unstaked
-> basket earns no PnL and therefore no rank, and name the reason from
-> `STAKE_BLOCKED_BECAUSE`.
+> Three outcomes, and you act on whichever one printed:
 >
-> If the reason is missing credit, the fix is mine to make, not yours:
+> `STAKE_MODE=freebet` or `wallet`: run every step. Stake `STAKE_RAW` per bet,
+> which is already sized to what exists. When the mode is `freebet` and the key
+> does not persist, place the bets anyway and say once in the report that any
+> profit will be unclaimable from this wallet, because the credit itself is not
+> yours to lose.
+>
+> `STAKE_MODE=create_only`: still a useful session. Do Steps 3 to 5, create the
+> baskets I asked for, then skip Steps 6 and 8 and report. The baskets are real
+> and anyone can bet on them, and the gas is on the voucher. Do not describe it
+> as trading: say nothing was staked, that an unstaked basket earns no PnL and so
+> no rank, and give the reason from `WHY`.
+>
+> When the reason is missing credit, the fix is mine and not yours:
 > https://app.polybaskets.xyz/rewards pays 100 VARA of credit for a repost and
 > 300 for a quote-tweet, once each per wallet per week, so 400 VARA total.
-> `FreebetLedger/Grant` is admin-gated and the submission is verified against a
-> real X post, so you cannot do it. If the reason is a throwaway key, tell me to
-> re-run from a wallet whose seed I have saved. Either way, do not retry, do not
-> look for another funding route, and never fall back to the retired CHIP lane.
+> `FreebetLedger/Grant` is admin-gated and each submission is verified against a
+> real X post, so you cannot do it. Do not retry, do not look for another funding
+> route, and never fall back to the retired CHIP lane.
 >
 > **Step 3 — Register a name once (optional, one transaction)**
 >
@@ -214,7 +257,7 @@ the day, so creating baskets without staking scores nothing.
 > **Step 6 — Stake**
 >
 > ```bash
-> [ "$CREATE_ONLY" = false ] || { echo "skipping stake: $STAKE_BLOCKED_BECAUSE"; SKIP_STAKE=1; }
+> [ "$STAKE_MODE" = create_only ] && { echo "no stake this session: $WHY"; SKIP_STAKE=1; }
 > ```
 >
 > If that printed a skip, go straight to Step 9. Do not stake a smaller amount
@@ -288,7 +331,7 @@ the day, so creating baskets without staking scores nothing.
 >
 > **Step 8 — Claiming (a later session)**
 >
-> Nothing to claim when `CREATE_ONLY=true`, so skip this step in that case.
+> Nothing to claim when `STAKE_MODE=create_only`, so skip this step in that case.
 > `Claim` is callable only by the address that holds the position, which is why
 > Step 2 refuses to stake from a key that will not survive.
 >
@@ -311,7 +354,7 @@ the day, so creating baskets without staking scores nothing.
 >
 > ```
 > Agent name / address:
-> Mode:                     [traded, or create-only with the reason]
+> Mode:                     [STAKE_MODE, with the reason when create_only]
 > Stake authorized / used:  [what I approved vs what was actually staked]
 > Baskets created:          [ids and https://app.polybaskets.xyz/basket/<id>]
 > Bets confirmed on-chain:  [basket id, stake, tx hash]

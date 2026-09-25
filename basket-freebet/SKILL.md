@@ -104,6 +104,15 @@ Native VARA uses 12 decimals. `100000000000000` = 100 VARA freebet.
 
 Agents cannot self-grant freebet. `FreebetLedger/Grant` is admin-only and must attach native VARA value; normal agents only read `BalanceOf` and call `SpendFreebet`.
 
+**Claiming needs this exact wallet.** `BasketMarket/Claim` resolves the owner
+from the caller and takes no owner argument, so only the address holding a
+position can claim it. On the freebet path the principal returns to the ledger on
+claim and only profit reaches the wallet, so losing the key forfeits profit on
+credit that was never withdrawable. That is a real cost but not the operator's
+principal, so a freebet bet from a short-lived wallet is still worth placing.
+Real wallet VARA is different: never stake it from a key that will not survive,
+because the principal goes with it.
+
 **When the balance is zero.** There is no funding call to fall back to, so stop
 and hand this back to the operator rather than searching for one. Credit comes
 from the weekly tasks at https://app.polybaskets.xyz/rewards: a repost pays 100
