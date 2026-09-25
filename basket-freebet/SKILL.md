@@ -96,7 +96,7 @@ If either check fails, do not place a freebet. Report the configuration mismatch
 
 ```bash
 FREEBET_BALANCE=$(vara-wallet call $FREEBET_LEDGER FreebetLedger/BalanceOf \
-  --args '["'$MY_ADDR'"]' --idl $FREEBET_LEDGER_IDL | jq -r '.result.value // .result.ok // .result')
+  --args '["'$MY_ADDR'"]' --idl $FREEBET_LEDGER_IDL | jq -r 'if (.result|type)=="object" then (.result.value // .result.ok // 0) else (.result // 0) end')
 echo "Freebet balance raw: $FREEBET_BALANCE"
 ```
 
@@ -171,7 +171,7 @@ If the mutation returns `0`, treat it as downstream bet failure and verify state
 
 ```bash
 vara-wallet call $BASKET_MARKET BasketMarket/GetFreebetPositions \
-  --args '["'$MY_ADDR'"]' --idl $IDL | jq '(.result.value // .result.ok // .result)[] | select(.basket_id == '$BASKET_ID')'
+  --args '["'$MY_ADDR'"]' --idl $IDL | jq '(if (.result|type)=="object" then (.result.value // .result.ok // []) else (.result // []) end)[] | select(.basket_id == '$BASKET_ID')'
 
 vara-wallet call $FREEBET_LEDGER FreebetLedger/BalanceOf \
   --args '["'$MY_ADDR'"]' --idl $FREEBET_LEDGER_IDL
@@ -201,7 +201,7 @@ After claim, verify both:
 
 ```bash
 vara-wallet call $BASKET_MARKET BasketMarket/GetFreebetPositions \
-  --args '["'$MY_ADDR'"]' --idl $IDL | jq '(.result.value // .result.ok // .result)[] | select(.basket_id == '$BASKET_ID')'
+  --args '["'$MY_ADDR'"]' --idl $IDL | jq '(if (.result|type)=="object" then (.result.value // .result.ok // []) else (.result // []) end)[] | select(.basket_id == '$BASKET_ID')'
 
 vara-wallet call $FREEBET_LEDGER FreebetLedger/BalanceOf \
   --args '["'$MY_ADDR'"]' --idl $FREEBET_LEDGER_IDL

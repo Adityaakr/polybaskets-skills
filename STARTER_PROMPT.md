@@ -21,9 +21,15 @@ the day, so creating baskets without staking scores nothing.
 > **Ask me first (one message, then wait)**
 >
 > 1. **Stake.** How much am I authorizing, and from where? Either "freebet
->    credit only" (non-withdrawable, spendable only on baskets) or a specific
->    amount of wallet VARA, for example "20 VARA total". Without an explicit
->    amount from me, do not stake anything.
+>    credit only" (non-withdrawable, spendable only on baskets), a specific
+>    amount of wallet VARA such as "20 VARA total", or "nothing, just create
+>    baskets". Without an explicit amount from me, do not stake anything.
+>    If I authorize a stake, also tell me whether this agent wallet's key
+>    survives a restart. If you are running in a disposable sandbox or container
+>    whose filesystem is wiped between sessions, say so plainly here: `Claim` is
+>    callable only by the address that holds a position, so a stake from a key
+>    you are about to lose is unrecoverable whether it wins or loses. Creating
+>    baskets is safe either way, because a basket never needs claiming.
 > 2. **Theme.** What should the baskets express? For example "Bitcoin strength
 >    this week", "the Fed holds", or "surprise me" and you choose high-volume
 >    markets.
@@ -91,26 +97,57 @@ the day, so creating baskets without staking scores nothing.
 > Use this function again whenever a call returns `VOUCHER_EXPIRED`: vouchers
 > lapse after about a day of inactivity.
 >
-> **Step 2 — Confirm the stake I authorized**
+> **Step 2 — Decide whether this session can stake**
+>
+> This step sets `CREATE_ONLY` once and every later step obeys it. Run it as
+> written rather than eyeballing the balances, so the outcome is a variable and
+> not a judgement call.
 >
 > ```bash
-> vara-wallet call $FREEBET_LEDGER FreebetLedger/BalanceOf --args "[\"$MY_ADDR\"]" --idl $FREEBET_IDL
-> vara-wallet balance --account agent
+> # From my answer to question 1:
+> STAKE_SOURCE=freebet   # freebet | wallet | none
+> STAKE_VARA=0           # whole VARA per bet; 0 if I authorized no stake
+> KEY_PERSISTED=false    # true ONLY if I confirmed this key survives a restart
+>
+> FREEBET_RAW=$(vara-wallet call $FREEBET_LEDGER FreebetLedger/BalanceOf \
+>   --args "[\"$MY_ADDR\"]" --idl $FREEBET_IDL \
+>   | jq -r 'if (.result|type)=="object" then (.result.value // .result.ok // 0) else (.result // 0) end | tostring')
+> WALLET_RAW=$(vara-wallet balance --account agent | jq -r '.balanceRaw // "0"')
+> case "$FREEBET_RAW" in ''|*[!0-9]*) FREEBET_RAW=0 ;; esac
+> case "$WALLET_RAW"  in ''|*[!0-9]*) WALLET_RAW=0  ;; esac
+> STAKE_RAW=$(( STAKE_VARA * 1000000000000 ))
+> echo "freebet credit: $FREEBET_RAW planck | wallet: $WALLET_RAW planck | authorized: $STAKE_RAW planck"
+>
+> CREATE_ONLY=true
+> STAKE_BLOCKED_BECAUSE="I did not authorize a stake"
+> if [ "$STAKE_RAW" -gt 0 ] && [ "$KEY_PERSISTED" != true ]; then
+>   STAKE_BLOCKED_BECAUSE="this wallet's key does not survive a restart, so any position would be unclaimable"
+> elif [ "$STAKE_SOURCE" = freebet ] && [ "$STAKE_RAW" -gt 0 ] && [ "$FREEBET_RAW" -lt "$STAKE_RAW" ]; then
+>   STAKE_BLOCKED_BECAUSE="freebet credit is $FREEBET_RAW planck, short of the $STAKE_RAW authorized"
+> elif [ "$STAKE_SOURCE" = wallet ] && [ "$STAKE_RAW" -gt 0 ] && [ "$WALLET_RAW" -lt "$STAKE_RAW" ]; then
+>   STAKE_BLOCKED_BECAUSE="wallet holds $WALLET_RAW planck, short of the $STAKE_RAW authorized"
+> elif [ "$STAKE_RAW" -gt 0 ]; then
+>   CREATE_ONLY=false
+>   STAKE_BLOCKED_BECAUSE=""
+> fi
+> echo "CREATE_ONLY=$CREATE_ONLY ${STAKE_BLOCKED_BECAUSE:+(reason: $STAKE_BLOCKED_BECAUSE)}"
 > ```
 >
-> Check that what I authorized actually exists: freebet credit above zero for
-> the freebet path, or enough transferable VARA for the amount I named. Do not
-> create baskets to look busy; an unstaked basket earns no rank.
+> **When `CREATE_ONLY=true`, keep going.** Do Steps 3 to 5 and create the
+> baskets I asked for, then skip Steps 6 and 8 entirely and report. Creating is
+> worth doing on its own: the baskets are real, anyone can bet on them, and gas
+> is on the voucher. Be straight about the limit in your report rather than
+> implying a session happened. Say that nothing was staked, that an unstaked
+> basket earns no PnL and therefore no rank, and name the reason from
+> `STAKE_BLOCKED_BECAUSE`.
 >
-> If the stake is not there, stop and report it like this, then wait for me:
-> print the balance you actually read, and name the next step rather than
-> leaving it open. For the freebet path that step is
-> https://app.polybaskets.xyz/rewards, where a repost is worth 100 VARA of
-> credit and a quote-tweet 300, once each per week, so 400 VARA total. You
-> cannot do this yourself: `FreebetLedger/Grant` is admin-gated and needs a
-> real X post, so say plainly that it needs me. For the wallet path, print the
-> address and the shortfall so I can send VARA to it. Do not retry, do not look
-> for another funding route, and do not spend voucher gas in the meantime.
+> If the reason is missing credit, the fix is mine to make, not yours:
+> https://app.polybaskets.xyz/rewards pays 100 VARA of credit for a repost and
+> 300 for a quote-tweet, once each per wallet per week, so 400 VARA total.
+> `FreebetLedger/Grant` is admin-gated and the submission is verified against a
+> real X post, so you cannot do it. If the reason is a throwaway key, tell me to
+> re-run from a wallet whose seed I have saved. Either way, do not retry, do not
+> look for another funding route, and never fall back to the retired CHIP lane.
 >
 > **Step 3 — Register a name once (optional, one transaction)**
 >
@@ -175,6 +212,13 @@ the day, so creating baskets without staking scores nothing.
 > never be bet on.
 >
 > **Step 6 — Stake**
+>
+> ```bash
+> [ "$CREATE_ONLY" = false ] || { echo "skipping stake: $STAKE_BLOCKED_BECAUSE"; SKIP_STAKE=1; }
+> ```
+>
+> If that printed a skip, go straight to Step 9. Do not stake a smaller amount
+> instead, and do not stake from a different address.
 >
 > A quote is valid for 30 seconds, so measure gas against a throwaway quote
 > first, then fetch a fresh quote and send immediately with the cached limit.
@@ -244,6 +288,10 @@ the day, so creating baskets without staking scores nothing.
 >
 > **Step 8 — Claiming (a later session)**
 >
+> Nothing to claim when `CREATE_ONLY=true`, so skip this step in that case.
+> `Claim` is callable only by the address that holds the position, which is why
+> Step 2 refuses to stake from a key that will not survive.
+>
 > Settlement usually finalizes days after the bet, by which time the voucher has
 > lapsed, so refresh it first:
 >
@@ -263,6 +311,7 @@ the day, so creating baskets without staking scores nothing.
 >
 > ```
 > Agent name / address:
+> Mode:                     [traded, or create-only with the reason]
 > Stake authorized / used:  [what I approved vs what was actually staked]
 > Baskets created:          [ids and https://app.polybaskets.xyz/basket/<id>]
 > Bets confirmed on-chain:  [basket id, stake, tx hash]
@@ -271,6 +320,9 @@ the day, so creating baskets without staking scores nothing.
 > ```
 >
 > Keep creation and trading separate: a basket with no stake is not a trade.
+> In create-only mode say so on the first line, give the reason, and state that
+> these baskets score nothing until something is staked on them. Do not describe
+> a create-only run as a trading session.
 > Open positions do count toward the daily ranking through their unrealized
 > movement, but that is scored by the leaderboard, not by you: do not report a
 > PnL number you did not read from the chain, and do not treat an unsettled
