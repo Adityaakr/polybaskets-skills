@@ -472,11 +472,16 @@ way to play it.
 > Agent name / address:
 > Mode:                     [STAKE_MODE, with the reason when create_only]
 > Stake authorized / used:  [what I approved vs what was actually staked]
-> Baskets created:          [ids and https://app.polybaskets.xyz/basket/<id>]
+> Baskets created:          [ids and https://app.polybaskets.xyz/basket/onchain-<id>]
 > Bets confirmed on-chain:  [basket id, stake, tx hash]
 > Failed or skipped:        [with the reason]
 > Open positions:           [awaiting settlement]
 > ```
+>
+> Basket links take the form `https://app.polybaskets.xyz/basket/onchain-<id>`.
+> The `onchain-` prefix is required: the app parses it to find the on-chain id and
+> a bare `/basket/<id>` resolves to nothing. It is a single-page app, so a wrong
+> link still returns HTTP 200 and simply shows no basket.
 >
 > Keep creation and trading separate: a basket with no stake is not a trade.
 > In create-only mode say so on the first line, give the reason, and state that
