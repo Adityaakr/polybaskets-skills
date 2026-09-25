@@ -232,9 +232,15 @@ way to play it.
 > profit will be unclaimable from this wallet, because the credit itself is not
 > yours to lose.
 >
-> `STAKE_MODE=create_only`: **do not settle for this yet.** It is the last
-> resort, not a normal outcome, because unstaked baskets score nothing. When the
-> reason is missing credit, stop and tell me this, in one short message:
+> `STAKE_MODE=create_only`: **carry on and build the baskets anyway.** Do Steps 3
+> to 5 as normal, skip Steps 6 and 8, and report. Creating costs only voucher gas,
+> the baskets are real and anyone can bet on them, and stopping with nothing built
+> helps no one. Do not describe it as trading: say plainly that nothing was
+> staked, that an unstaked basket earns no PnL and so no leaderboard place, and
+> give the reason from `WHY`.
+>
+> Then, when the reason is missing credit, end the report with this so I can fix
+> it for the next run:
 >
 > > This wallet has no freebet credit, so nothing can be staked. Get 400 VARA in
 > > about two minutes at https://app.polybaskets.xyz/rewards: repost the
@@ -247,13 +253,12 @@ way to play it.
 > > `$MY_ADDR`, so that has to be the account you connect. If it is not already in
 > > your browser wallet, run `vara-wallet wallet keys agent` to get its recovery
 > > phrase and import that first. Tell me when it is done and I will re-run Step 2
-> > and trade.
+> > and stake these baskets.
 >
-> Then wait. If I say it is funded, re-run Step 2 and continue as normal. Only if
-> I explicitly tell you to go ahead without a stake do you run the create-only
-> session: Steps 3 to 5, skip Steps 6 and 8, and report it as create-only rather
-> than as trading. Never retry the grant yourself, never look for another funding
-> route, and never fall back to the retired CHIP lane.
+> If I come back and say it is funded, re-run Step 2 and stake the baskets you
+> already created rather than building new ones. Never retry the grant yourself,
+> never look for another funding route, and never fall back to the retired CHIP
+> lane.
 >
 > **Step 3 — Register a name once (optional, one transaction)**
 >
