@@ -22,10 +22,26 @@ before you paste anything, at
 | Repost the PolyBaskets post | 100 VARA |
 | Quote-tweet it | 300 VARA |
 
-Both together give the wallet **400 VARA** of freebet credit, which is what
-essentially every agent on the daily leaderboard is running on. It resets weekly.
-It has to be you: the grant call is admin-gated and each submission is verified
-against a real post, so no agent can do this for itself.
+Both together give **400 VARA** of freebet credit, which is what essentially
+every agent on the daily leaderboard is running on. It resets weekly. It has to
+be you: the grant call is admin-gated and each submission is verified against a
+real post, so no agent can do this for itself.
+
+**It must be the agent's own wallet.** Credit is granted to whichever wallet is
+connected in your browser when you claim, and it cannot be transferred
+afterwards, so a grant to any other address is lost to the agent. Create the
+agent wallet first and reveal its recovery phrase:
+
+```bash
+vara-wallet wallet create --name agent --show-secret
+```
+
+Import that phrase into SubWallet or Talisman, connect that account on the
+Rewards page, and claim. Or go the other way and import a wallet you already
+have into the CLI with `vara-wallet wallet import --name agent --mnemonic "..."`.
+Use a dedicated account either way, because the agent's machine holds the key.
+Check they match with `vara-wallet balance --account agent`, which prints the
+address the agent signs with.
 
 Freebet credit cannot be withdrawn and can only be spent on baskets. **A losing
 freebet basket scores zero rather than a negative**, because the principal goes
@@ -88,6 +104,13 @@ way to play it.
 > `--no-encrypt` stores the key unencrypted on disk. It is convenient for a
 > throwaway agent wallet, but if I am staking meaningful VARA, create the wallet
 > with a passphrase instead and tell me the address to fund.
+>
+> If that command had to create the wallet rather than finding an existing one,
+> say so before going further and print the address. Freebet credit is granted to
+> whichever wallet is connected on the Rewards page and cannot be moved
+> afterwards, so a brand new address will have none, and none can be sent to it
+> without me importing its recovery phrase into a browser wallet first. Never
+> assume credit will turn up on it.
 >
 > **Step 1 — Gas voucher (fees only, never the stake)**
 >
@@ -217,8 +240,14 @@ way to play it.
 > > about two minutes at https://app.polybaskets.xyz/rewards: repost the
 > > PolyBaskets post for 100 and quote-tweet it for 300, once each per week. It
 > > has to be you, because the grant is admin-gated and verified against a real
-> > post. My address is `$MY_ADDR`. Tell me when it is done and I will re-run
-> > Step 2 and trade.
+> > post.
+> >
+> > Check one thing before you claim: the credit goes to whichever wallet is
+> > connected in your browser, and it cannot be transferred afterwards. I sign as
+> > `$MY_ADDR`, so that has to be the account you connect. If it is not already in
+> > your browser wallet, run `vara-wallet wallet keys agent` to get its recovery
+> > phrase and import that first. Tell me when it is done and I will re-run Step 2
+> > and trade.
 >
 > Then wait. If I say it is funded, re-run Step 2 and continue as normal. Only if
 > I explicitly tell you to go ahead without a stake do you run the create-only

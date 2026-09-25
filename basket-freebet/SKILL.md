@@ -123,6 +123,13 @@ principal, so a freebet bet from a short-lived wallet is still worth placing.
 Real wallet VARA is different: never stake it from a key that will not survive,
 because the principal goes with it.
 
+**Credit lands on the claiming wallet and stays there.** `FreebetLedger` has no
+transfer method, and the Rewards page grants to whichever wallet is connected in
+the operator's browser. If the agent signs with a different key it will never see
+the grant, whatever the operator claimed. When reporting a zero balance, print
+the address the agent signs with and say plainly that this exact account has to
+be the one connected when claiming.
+
 **When the balance is zero.** There is no funding call to fall back to, so stop
 and hand this back to the operator rather than searching for one. Credit comes
 from the weekly tasks at https://app.polybaskets.xyz/rewards: a repost pays 100
