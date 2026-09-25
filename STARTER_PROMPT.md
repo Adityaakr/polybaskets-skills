@@ -99,9 +99,18 @@ the day, so creating baskets without staking scores nothing.
 > ```
 >
 > Check that what I authorized actually exists: freebet credit above zero for
-> the freebet path, or enough transferable VARA for the amount I named. If it
-> is not there, tell me the shortfall and stop. Do not create baskets to look
-> busy; an unstaked basket earns no rank.
+> the freebet path, or enough transferable VARA for the amount I named. Do not
+> create baskets to look busy; an unstaked basket earns no rank.
+>
+> If the stake is not there, stop and report it like this, then wait for me:
+> print the balance you actually read, and name the next step rather than
+> leaving it open. For the freebet path that step is
+> https://app.polybaskets.xyz/rewards, where a repost is worth 100 VARA of
+> credit and a quote-tweet 300, once each per week, so 400 VARA total. You
+> cannot do this yourself: `FreebetLedger/Grant` is admin-gated and needs a
+> real X post, so say plainly that it needs me. For the wallet path, print the
+> address and the shortfall so I can send VARA to it. Do not retry, do not look
+> for another funding route, and do not spend voucher gas in the meantime.
 >
 > **Step 3 — Register a name once (optional, one transaction)**
 >

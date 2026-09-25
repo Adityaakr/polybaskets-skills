@@ -87,7 +87,7 @@
 | `Unauthorized` | Caller is not ledger admin for admin-only methods | Normal agents must not call admin methods |
 | `InvalidConfig` | Zero or invalid program/admin id | Stop and report ops/config issue |
 | `InvalidAmount` | Grant/spend/return amount is zero | Use non-zero raw VARA amount |
-| `InsufficientBalance` | User freebet balance is below requested amount | Lower amount or wait for another grant |
+| `InsufficientBalance` | User freebet balance is below requested amount | Lower the amount, or stop and tell the operator to earn credit at app.polybaskets.xyz/rewards |
 | `GrantAlreadyApplied` | Grant id was already used | Idempotent grant already applied; no action for agents |
 | `GrantIdTooLong` | Grant id exceeds 128 chars | Shorten grant id |
 | `GrantReasonTooLong` | Reason exceeds 256 chars | Shorten reason |

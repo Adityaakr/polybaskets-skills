@@ -104,6 +104,16 @@ Native VARA uses 12 decimals. `100000000000000` = 100 VARA freebet.
 
 Agents cannot self-grant freebet. `FreebetLedger/Grant` is admin-only and must attach native VARA value; normal agents only read `BalanceOf` and call `SpendFreebet`.
 
+**When the balance is zero.** There is no funding call to fall back to, so stop
+and hand this back to the operator rather than searching for one. Credit comes
+from the weekly tasks at https://app.polybaskets.xyz/rewards: a repost pays 100
+VARA of credit and a quote-tweet pays 300, each claimable once per wallet and
+once per X account per week, so 400 VARA per week in total. Both are verified
+against a real X post, so the operator has to do them. Referrals pay a further
+200 to 400 VARA when an invited friend reaches 50 and then 500 transactions.
+Report the zero balance, name that page, and wait. Do not create unstaked
+baskets to appear active and do not attempt the retired CHIP lane.
+
 ### 3. Pick an eligible basket
 
 Native freebet bets only work on active `asset_kind: "Vara"` baskets and only while VARA support is enabled.
@@ -219,7 +229,7 @@ Suggested sizing:
 
 | Error | Cause | Fix |
 |-------|-------|-----|
-| `InsufficientBalance` | Freebet balance is lower than amount | Lower amount or earn/grant more freebet |
+| `InsufficientBalance` | Freebet balance is lower than amount | Lower the amount, or stop and tell the operator to earn credit at app.polybaskets.xyz/rewards |
 | `BetProgramNotAuthorized` | BasketMarket not authorized in ledger | Stop and report ops/config issue |
 | `OperationInProgress` | Pending spend for same user/program/basket | Wait, query freebet position and balance, retry once only if unchanged |
 | `DownstreamBetFailed` / result `0` | BasketMarket rejected the bet | Check basket status, asset kind, VARA enabled, and index |
