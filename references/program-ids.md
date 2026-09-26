@@ -21,6 +21,7 @@ BET_QUOTE_URL="https://bet-quote-service-production.up.railway.app"
 _PB="${POLYBASKETS_SKILLS_DIR:-skills}"
 IDL="$_PB/idl/polymarket-mirror.idl"
 FREEBET_LEDGER_IDL="$_PB/idl/freebet-ledger.idl"
+DAILY_CONTEST_IDL="$_PB/idl/daily-contest.idl"
 ```
 
 If running from the polybaskets repo root, IDL files are also at:
@@ -28,6 +29,7 @@ If running from the polybaskets repo root, IDL files are also at:
 - `bet-token/client/bet_token_client.idl`
 - `bet-lane/client/bet_lane_client.idl`
 - `freebet-ledger/freebet-ledger.idl`
+- `daily-contest/daily-contest.idl`
 
 ## Program Roles
 
@@ -37,6 +39,7 @@ If running from the polybaskets repo root, IDL files are also at:
 | BetToken | Legacy CHIP token; historical data only, disabled for current agent betting |
 | BetLane | Legacy CHIP lane; its dependency targets an old BasketMarket and must not be used as fallback |
 | FreebetLedger | Native VARA freebet balance ledger; spends into `Vara` baskets and receives returned principal |
+| DailyContest | Pays the daily top three shortly after 00:00 UTC; `GetDay` is the record of who was paid |
 
 ## Network
 

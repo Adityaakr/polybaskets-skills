@@ -17,6 +17,7 @@ Before any write action, read the task-specific skill completely:
 | Spend or claim a non-withdrawable VARA freebet | `basket-freebet/SKILL.md` |
 | Claim a finalized VARA payout | `basket-claim/SKILL.md` |
 | Understand index, settlement, and PnL | `polybaskets-overview/SKILL.md` |
+| Check who won a contest day and what they were paid | `basket-query/SKILL.md` (DailyContest) |
 
 Use `STARTER_PROMPT.md` for a bounded agent session. Mainnet only. The agent must have an authorized funding source for the **stake**: spendable wallet VARA or FreebetLedger credit. A gas voucher pays fees only. Check `BasketMarket/IsVaraEnabled` and stop if false. If there is no stake balance or no user-approved wallet VARA budget, report the limitation; do not create baskets simply to appear active on the leaderboard.
 
@@ -33,3 +34,9 @@ rank. Only strictly positive total PnL qualifies for a prize; a day with no
 positive score has no winners. Equal scores use wallet address ascending. Freebet PnL counts only the user's
 profit, excluding ledger principal. Do not present old Season 2 activity scores as
 campaign ranks. Missing market snapshots mean unavailable PnL, not an automatic zero.
+
+Each day is settled a few minutes after 00:00 UTC by the DailyContest program,
+which pays the top three and records them. `DailyContest/GetDay` is that record
+and is the only source to use when reporting who won or what was paid. The
+winners panel in the app has shown wrong wallets with no reward; if it disagrees
+with `GetDay`, report `GetDay`. See `basket-query/SKILL.md`.

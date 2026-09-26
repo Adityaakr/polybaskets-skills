@@ -19,6 +19,8 @@ FREEBET_LEDGER="0x2bb74834402fb7da9144d2ab91c1570e97237ad0ead1f7feb392162c3e3ad6
 _PB="${POLYBASKETS_SKILLS_DIR:-skills}"
 IDL="$_PB/idl/polymarket-mirror.idl"
 FREEBET_LEDGER_IDL="$_PB/idl/freebet-ledger.idl"
+DAILY_CONTEST="0x1f320a71665f990701daf3862aa4cbb98943859a726c2b497bd053e120149a77"
+DAILY_CONTEST_IDL="$_PB/idl/daily-contest.idl"
 ```
 
 ## Get Your Hex Address
@@ -135,3 +137,39 @@ vara-wallet call $FREEBET_LEDGER FreebetLedger/IsBetProgramAuthorized \
 ```
 
 If this returns `false`, agents must not attempt `SpendFreebet`.
+
+## DailyContest Queries
+
+The contest program settles each UTC day a few minutes after 00:00 UTC, pays the
+top three, and stores the result. These reads are the record of what it paid. Use
+them, not the app's winners panel, when reporting who won: that panel has shown
+wrong wallets with a null reward while the contract paid the correct ones.
+
+A day id is whole UTC days since the Unix epoch: `$(( $(date -u +%s) / 86400 ))`
+is today, and today is never settled yet.
+
+### Who won a day, and was it me
+
+```bash
+DAY=${DAY:-$(( $(date -u +%s) / 86400 - 1 ))}   # yesterday in UTC
+vara-wallet call $DAILY_CONTEST DailyContest/GetDay --args "[$DAY]" --idl $DAILY_CONTEST_IDL \
+  | jq -r --arg me "$MY_ADDR" '
+      def vara: tostring | if length > 12 then .[:-12] else "0" end;
+      .result | if .kind == "Ok" then
+        (.value.winners | to_entries[] |
+          "#\(.key + 1)  \(.value.account)  profit \(.value.realized_profit | vara) VARA  paid \(.value.reward | vara) VARA" +
+          (if .value.account == $me then "  <- you" else "" end))
+      else "not settled yet: \(.value.kind)" end'
+```
+
+`Err` with `DayNotFound` means the day has not been settled. A settled day with
+no positive score returns `status: NoWinner` and an empty winner list. Amounts are
+raw 12-decimal units; the jq above trims them to whole VARA. Do not convert with
+`tonumber`, which loses precision above 2^53.
+
+### Prize amounts and what is left to pay
+
+```bash
+vara-wallet call $DAILY_CONTEST DailyContest/GetConfig --args '[]' --idl $DAILY_CONTEST_IDL | jq '.result.prize_payouts'
+vara-wallet call $DAILY_CONTEST DailyContest/GetRewardPool --args '[]' --idl $DAILY_CONTEST_IDL
+```
